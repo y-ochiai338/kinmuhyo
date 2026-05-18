@@ -1,127 +1,130 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  getAuth,
+} from "firebase/auth";
+
 import {
   collection,
   addDoc,
-  onSnapshot,
 } from "firebase/firestore";
+
 import { db } from "./firebase";
 
+const auth = getAuth();
+
 export default function App() {
-  const [records, setRecords] = useState([]);
+  const [user, setUser] = useState(null);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [work, setWork] = useState("");
-  const [distance, setDistance] = useState("");
-  const [shortTime, setShortTime] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "records"),
-      (snapshot) => {
-        const list = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+  const login = async () => {
+    try {
+      const result = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
-        setRecords(list);
-      }
-    );
+      setUser(result.user);
+    } catch (error) {
+      alert("ログイン失敗");
+    }
+  };
 
-    return () => unsubscribe();
-  }, []);
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+  };
 
   const addRecord = async () => {
     if (!name || !date || !work) return;
 
     await addDoc(collection(db, "records"), {
+      user: user.email,
       name,
       date,
       work,
-      distance,
-      shortTime,
     });
+
+    alert("保存しました");
 
     setName("");
     setDate("");
     setWork("");
-    setDistance("");
-    setShortTime(false);
   };
 
+  if (!user) {
+    return (
+      <div style={{ padding: 30 }}>
+        <h1>勤務表ログイン</h1>
+
+        <input
+          placeholder="メールアドレス"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <br />
+        <br />
+
+        <input
+          type="password"
+          placeholder="パスワード"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <br />
+        <br />
+
+        <button onClick={login}>ログイン</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
+    <div style={{ padding: 30 }}>
       <h1>勤務表</h1>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          maxWidth: 400,
-        }}
-      >
-        <input
-          placeholder="氏名"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <p>ログイン中：{user.email}</p>
 
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-
-        <input
-          placeholder="勤務内容"
-          value={work}
-          onChange={(e) => setWork(e.target.value)}
-        />
-
-        <input
-          placeholder="活動距離"
-          value={distance}
-          onChange={(e) => setDistance(e.target.value)}
-        />
-
-        <label>
-          <input
-            type="checkbox"
-            checked={shortTime}
-            onChange={(e) => setShortTime(e.target.checked)}
-          />
-          5時間以内
-        </label>
-
-        <button onClick={addRecord}>追加</button>
-      </div>
+      <button onClick={logout}>ログアウト</button>
 
       <hr />
 
-      <table border="1" cellPadding="10">
-        <thead>
-          <tr>
-            <th>氏名</th>
-            <th>日付</th>
-            <th>勤務内容</th>
-            <th>活動距離</th>
-            <th>5時間以内</th>
-          </tr>
-        </thead>
+      <input
+        placeholder="氏名"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
 
-        <tbody>
-          {records.map((r) => (
-            <tr key={r.id}>
-              <td>{r.name}</td>
-              <td>{r.date}</td>
-              <td>{r.work}</td>
-              <td>{r.distance}</td>
-              <td>{r.shortTime ? "✔" : ""}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <br />
+      <br />
+
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+      />
+
+      <br />
+      <br />
+
+      <input
+        placeholder="勤務内容"
+        value={work}
+        onChange={(e) => setWork(e.target.value)}
+      />
+
+      <br />
+      <br />
+
+      <button onClick={addRecord}>保存</button>
     </div>
-  );
-}
