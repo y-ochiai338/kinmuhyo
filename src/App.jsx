@@ -128,3 +128,5 @@ export default function App() {
 
       <button onClick={addRecord}>保存</button>
     </div>
+  );
+}
