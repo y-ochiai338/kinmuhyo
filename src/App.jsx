@@ -36,9 +36,7 @@ export default function App() {
   const adminEmail = "y_ochiai@lifelong-sport.jp";
   const isAdmin = user?.email === adminEmail;
 
-  // -----------------------------
   // ログイン保持
-  // -----------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -47,9 +45,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // -----------------------------
   // データ取得
-  // -----------------------------
   const fetchRecords = async () => {
     const snap = await getDocs(collection(db, "kinmu"));
 
@@ -67,9 +63,7 @@ export default function App() {
     }
   }, [user]);
 
-  // -----------------------------
   // ログイン
-  // -----------------------------
   const login = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -78,16 +72,12 @@ export default function App() {
     }
   };
 
-  // -----------------------------
   // ログアウト
-  // -----------------------------
   const logout = async () => {
     await signOut(auth);
   };
 
-  // -----------------------------
   // 保存
-  // -----------------------------
   const addRecord = async () => {
     try {
       await addDoc(collection(db, "kinmu"), {
@@ -111,9 +101,7 @@ export default function App() {
     }
   };
 
-  // -----------------------------
   // 削除
-  // -----------------------------
   const deleteRecord = async (id) => {
     if (!window.confirm("削除しますか？")) return;
 
@@ -122,9 +110,7 @@ export default function App() {
     fetchRecords();
   };
 
-  // -----------------------------
   // フィルター
-  // -----------------------------
   const filteredRecords = records.filter((r) => {
     const monthMatch = selectedMonth
       ? r.date?.slice(0, 7) === selectedMonth
@@ -137,9 +123,7 @@ export default function App() {
     return monthMatch && userMatch;
   });
 
-  // -----------------------------
   // Excel出力
-  // -----------------------------
   const exportExcel = () => {
     const data = filteredRecords.map((r) => ({
       名前: r.name,
@@ -162,9 +146,7 @@ export default function App() {
     );
   };
 
-  // -----------------------------
   // ログイン前
-  // -----------------------------
   if (!user) {
     return (
       <div style={styles.container}>
@@ -194,9 +176,7 @@ export default function App() {
     );
   }
 
-  // -----------------------------
   // メイン画面
-  // -----------------------------
   return (
     <div style={styles.container}>
       <h2>勤務表アプリ</h2>
@@ -300,9 +280,6 @@ export default function App() {
   );
 }
 
-// -----------------------------
-// styles
-// -----------------------------
 const styles = {
   container: {
     maxWidth: 600,
