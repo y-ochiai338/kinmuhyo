@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,   // ←ここに統合（重要）
+  onAuthStateChanged,
 } from "firebase/auth";
 
 import {
@@ -13,7 +13,6 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  updateDoc,
 } from "firebase/firestore";
 
 import { db, auth } from "./firebase";
@@ -28,178 +27,131 @@ export default function App() {
   const [date, setDate] = useState("");
   const [work, setWork] = useState("");
   const [distance, setDistance] = useState("");
+  const [underFiveHours, setUnderFiveHours] = useState(false);
 
   const [records, setRecords] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState("");
-  const [editId, setEditId] = useState(null);
 
-  const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   const adminEmail = "y_ochiai@lifelong-sport.jp";
   const isAdmin = user?.email === adminEmail;
 
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-
   // -----------------------------
-  // 🔐 ログイン保持（ここが追加ポイント）
+  // ログイン保持
   // -----------------------------
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   // -----------------------------
-  // PWA install
-  // -----------------------------
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const installApp = async () => {
-    try {
-      if (!deferredPrompt) {
-        alert("インストールできません");
-        return;
-      }
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      setDeferredPrompt(null);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // -----------------------------
-  // Firestore取得
+  // データ取得
   // -----------------------------
   const fetchRecords = async () => {
-    try {
-      const snap = await getDocs(collection(db, "records"));
+    const snap = await getDocs(collection(db, "kinmu"));
 
-      const data = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
+    const data = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
 
-      setRecords(data);
-    } catch (e) {
-      console.error(e);
-      setError("データ取得エラー");
-    }
+    setRecords(data);
   };
 
   useEffect(() => {
-    if (user) fetchRecords();
+    if (user) {
+      fetchRecords();
+    }
   }, [user]);
 
   // -----------------------------
-  // login
+  // ログイン
   // -----------------------------
   const login = async () => {
     try {
-      setError("");
       await signInWithEmailAndPassword(auth, email, password);
     } catch (e) {
-      console.error(e);
-      setError("ログイン失敗");
+      alert("ログイン失敗");
     }
   };
 
+  // -----------------------------
+  // ログアウト
+  // -----------------------------
   const logout = async () => {
     await signOut(auth);
   };
 
   // -----------------------------
-  // CRUD
+  // 保存
   // -----------------------------
   const addRecord = async () => {
-    await addDoc(collection(db, "records"), {
-      name,
-      date,
-      work,
-      distance,
-      user: user?.email || "",
-    });
+    try {
+      await addDoc(collection(db, "kinmu"), {
+        name,
+        date,
+        work,
+        distance,
+        underFiveHours,
+        user: user.email,
+      });
 
-    setName("");
-    setDate("");
-    setWork("");
-    setDistance("");
+      setName("");
+      setDate("");
+      setWork("");
+      setDistance("");
+      setUnderFiveHours(false);
 
-    fetchRecords();
+      fetchRecords();
+    } catch (e) {
+      console.log(e);
+    }
   };
 
+  // -----------------------------
+  // 削除
+  // -----------------------------
   const deleteRecord = async (id) => {
     if (!window.confirm("削除しますか？")) return;
 
-    await deleteDoc(doc(db, "records", id));
-    fetchRecords();
-  };
-
-  const editRecord = (r) => {
-    setEditId(r.id);
-    setName(r.name || "");
-    setDate(r.date || "");
-    setWork(r.work || "");
-    setDistance(r.distance || "");
-  };
-
-  const updateRecord = async () => {
-    await updateDoc(doc(db, "records", editId), {
-      name,
-      date,
-      work,
-      distance,
-    });
-
-    setEditId(null);
-    setName("");
-    setDate("");
-    setWork("");
-    setDistance("");
+    await deleteDoc(doc(db, "kinmu", id));
 
     fetchRecords();
   };
 
   // -----------------------------
-  // filter
+  // フィルター
   // -----------------------------
   const filteredRecords = records.filter((r) => {
     const monthMatch = selectedMonth
       ? r.date?.slice(0, 7) === selectedMonth
       : true;
 
-    const userMatch = isAdmin ? true : r.user === user?.email;
+    const userMatch = isAdmin
+      ? true
+      : r.user === user?.email;
 
     return monthMatch && userMatch;
   });
 
   // -----------------------------
-  // Excel
+  // Excel出力
   // -----------------------------
   const exportExcel = () => {
     const data = filteredRecords.map((r) => ({
-      氏名: r.name || "",
-      日付: r.date || "",
-      勤務内容: r.work || "",
-      活動距離: r.distance || "",
-      担当者: r.user || "",
+      名前: r.name,
+      日付: r.date,
+      勤務内容: r.work,
+      活動距離: r.distance,
+      "5時間以内": r.underFiveHours ? "✔" : "",
+      担当者: r.user,
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
+
     const wb = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(wb, ws, "勤務表");
@@ -219,8 +171,6 @@ export default function App() {
         <div style={styles.card}>
           <h2>勤務表アプリ</h2>
 
-          {error && <p style={{ color: "red" }}>{error}</p>}
-
           <input
             style={styles.input}
             placeholder="メール"
@@ -239,10 +189,6 @@ export default function App() {
           <button style={styles.button} onClick={login}>
             ログイン
           </button>
-
-          <button style={styles.button} onClick={installApp}>
-            インストール
-          </button>
         </div>
       </div>
     );
@@ -253,133 +199,180 @@ export default function App() {
   // -----------------------------
   return (
     <div style={styles.container}>
-      <h2>勤務表</h2>
+      <h2>勤務表アプリ</h2>
 
-      <p>ログイン中：{user?.email}</p>
+      <p>ログイン中：{user.email}</p>
 
-      {isAdmin && <h4>管理者モード</h4>}
+      {isAdmin && <h3>管理者モード</h3>}
 
-      <button style={styles.button} onClick={logout}>
+      <button style={styles.logout} onClick={logout}>
         ログアウト
       </button>
 
-      <hr />
+      <div style={styles.card}>
+        <input
+          style={styles.input}
+          placeholder="名前"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
-      <input
-        style={styles.input}
-        placeholder="氏名"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
+        <input
+          style={styles.input}
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
 
-      <input
-        style={styles.input}
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-      />
+        <input
+          style={styles.input}
+          placeholder="勤務内容"
+          value={work}
+          onChange={(e) => setWork(e.target.value)}
+        />
 
-      <input
-        style={styles.input}
-        placeholder="勤務内容"
-        value={work}
-        onChange={(e) => setWork(e.target.value)}
-      />
+        <input
+          style={styles.input}
+          placeholder="活動距離"
+          value={distance}
+          onChange={(e) => setDistance(e.target.value)}
+        />
 
-      <input
-        style={styles.input}
-        placeholder="活動距離"
-        value={distance}
-        onChange={(e) => setDistance(e.target.value)}
-      />
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "12px",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={underFiveHours}
+            onChange={(e) =>
+              setUnderFiveHours(e.target.checked)
+            }
+          />
+          5時間以内
+        </label>
 
-      {editId ? (
-        <button style={styles.button} onClick={updateRecord}>
-          更新
-        </button>
-      ) : (
         <button style={styles.button} onClick={addRecord}>
           保存
         </button>
-      )}
 
-      <hr />
+        <hr />
 
-      <input
-        type="month"
-        value={selectedMonth}
-        onChange={(e) => setSelectedMonth(e.target.value)}
-      />
+        <input
+          style={styles.input}
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+        />
 
-      <button style={styles.button} onClick={exportExcel}>
-        Excel出力
-      </button>
+        <button style={styles.excel} onClick={exportExcel}>
+          Excel出力
+        </button>
+      </div>
 
-      <hr />
+      {filteredRecords.map((r) => (
+        <div key={r.id} style={styles.record}>
+          <p>名前：{r.name}</p>
+          <p>日付：{r.date}</p>
+          <p>勤務内容：{r.work}</p>
+          <p>活動距離：{r.distance}</p>
 
-      {filteredRecords.length === 0 ? (
-        <p>データなし</p>
-      ) : (
-        filteredRecords.map((r) => (
-          <div key={r.id} style={styles.card}>
-            <p>氏名：{r.name}</p>
-            <p>日付：{r.date}</p>
-            <p>勤務：{r.work}</p>
-            <p>距離：{r.distance}</p>
-            <p>担当：{r.user}</p>
+          <p>
+            5時間以内：
+            {r.underFiveHours ? "✔" : ""}
+          </p>
 
-            <button style={styles.small} onClick={() => editRecord(r)}>
-              編集
-            </button>
+          <p>担当者：{r.user}</p>
 
-            <button style={styles.small} onClick={() => deleteRecord(r.id)}>
-              削除
-            </button>
-          </div>
-        ))
-      )}
+          <button
+            style={styles.delete}
+            onClick={() => deleteRecord(r.id)}
+          >
+            削除
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
 
 // -----------------------------
+// styles
+// -----------------------------
 const styles = {
   container: {
-    padding: 20,
     maxWidth: 600,
     margin: "0 auto",
-    backgroundColor: "#f4f6f9",
+    padding: 20,
+    background: "#f4f6f9",
     minHeight: "100vh",
   },
+
+  card: {
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+  },
+
   input: {
     width: "100%",
-    padding: 10,
-    marginBottom: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 8,
     border: "1px solid #ccc",
-    borderRadius: 6,
+    fontSize: 16,
   },
+
   button: {
     width: "100%",
     padding: 12,
-    marginBottom: 10,
     background: "#2563eb",
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    marginBottom: 10,
+    fontSize: 16,
+  },
+
+  excel: {
+    width: "100%",
+    padding: 12,
+    background: "#16a34a",
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    fontSize: 16,
+  },
+
+  logout: {
+    width: "100%",
+    padding: 10,
+    background: "#ef4444",
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+
+  record: {
+    background: "white",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  },
+
+  delete: {
+    padding: 8,
+    background: "#ef4444",
     color: "white",
     border: "none",
     borderRadius: 6,
-  },
-  small: {
-    marginRight: 10,
-    padding: 6,
-    background: "#2563eb",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-  },
-  card: {
-    border: "1px solid #ddd",
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-    background: "white",
   },
 };
