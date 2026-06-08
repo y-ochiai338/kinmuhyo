@@ -13,6 +13,7 @@ import {
   getDocs,
   deleteDoc,
   doc,
+  updateDoc,
 } from "firebase/firestore";
 
 import { db, auth } from "./firebase";
@@ -32,7 +33,7 @@ export default function App() {
   const [records, setRecords] = useState([]);
 
   const [selectedMonth, setSelectedMonth] = useState("");
-
+  const [editingId, setEditingId] = useState(null);
   const adminEmail = "y_ochiai@lifelong-sport.jp";
   const isAdmin = user?.email === adminEmail;
 
@@ -79,7 +80,20 @@ export default function App() {
 
   // 保存
   const addRecord = async () => {
-    try {
+  try {
+    if (editingId) {
+      await updateDoc(doc(db, "kinmu", editingId), {
+        name,
+        date,
+        work,
+        distance,
+        underFiveHours,
+        user: user.email,
+      });
+
+      alert("更新しました");
+      setEditingId(null);
+    } else {
       await addDoc(collection(db, "kinmu"), {
         name,
         date,
@@ -89,19 +103,35 @@ export default function App() {
         user: user.email,
       });
 
-      setName("");
-      setDate("");
-      setWork("");
-      setDistance("");
-      setUnderFiveHours(false);
-
-      fetchRecords();
-    } catch (e) {
-      console.log(e);
+      alert("保存しました");
     }
-  };
+
+    setName("");
+    setDate("");
+    setWork("");
+    setDistance("");
+    setUnderFiveHours(false);
+
+    fetchRecords();
+  } catch (e) {
+    console.log(e);
+  }
 
   // 削除
+  const editRecord = (r) => {
+  setEditingId(r.id);
+
+  setName(r.name || "");
+  setDate(r.date || "");
+  setWork(r.work || "");
+  setDistance(r.distance || "");
+  setUnderFiveHours(r.underFiveHours || false);
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+};
   const deleteRecord = async (id) => {
     if (!window.confirm("削除しますか？")) return;
 
@@ -237,8 +267,8 @@ export default function App() {
         </label>
 
         <button style={styles.button} onClick={addRecord}>
-          保存
-        </button>
+       {editingId ? "更新" : "保存"}
+       </button>
 
         <hr />
 
@@ -268,12 +298,26 @@ export default function App() {
 
           <p>担当者：{r.user}</p>
 
-          <button
-            style={styles.delete}
-            onClick={() => deleteRecord(r.id)}
-          >
-            削除
-          </button>
+<button
+  style={{
+    padding: 8,
+    background: "#f59e0b",
+    color: "white",
+    border: "none",
+    borderRadius: 6,
+    marginRight: 8,
+  }}
+  onClick={() => editRecord(r)}
+>
+  編集
+</button>
+
+<button
+  style={styles.delete}
+  onClick={() => deleteRecord(r.id)}
+>
+  削除
+</button>
         </div>
       ))}
     </div>
