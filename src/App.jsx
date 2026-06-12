@@ -51,11 +51,13 @@ export default function App() {
     const snap = await getDocs(collection(db, "kinmu"));
 
     const data = snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
+  id: d.id,
+  ...d.data(),
+}));
 
-    setRecords(data);
+data.reverse();
+
+setRecords(data);
   };
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export default function App() {
   } catch (e) {
     console.log(e);
   }
-
+  };
   // 削除
   const editRecord = (r) => {
   setEditingId(r.id);
@@ -145,7 +147,6 @@ export default function App() {
     const monthMatch = selectedMonth
       ? r.date?.slice(0, 7) === selectedMonth
       : true;
-
     const userMatch = isAdmin
       ? true
       : r.user === user?.email;
